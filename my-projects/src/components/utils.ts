@@ -12,7 +12,7 @@
   
   const hours = date.getHours();
   const period = isPM() ? "PM" : "AM";
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? `00` : hours;
+  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? `0` : hours;
   
   return `${displayHours}:${minutes} ${period}`;
 }

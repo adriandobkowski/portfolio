@@ -1,4 +1,4 @@
-import { useState, type JSX } from "react";
+import { useState, useRef, type JSX } from "react";
 import disableZoom from "./DisableZoom";
 import { formatTime, getImageUrl } from "./utils";
 import { projects, technologies } from "./constants";
@@ -20,7 +20,14 @@ export default function Main(): JSX.Element {
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isMinimalized, setIsMinimalized] = useState<boolean>(true);
 
+  const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+  const [isFocused, setIsFocused] = useState<boolean>(false);
+  const windowRef = useRef<HTMLDivElement | null>(null);
+
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
   const currentDate = new Date();
+  const baseUrl = "https://github.com/adriandob2604";
 
   disableZoom();
   const handleCloseWindow = (): void => {
@@ -44,6 +51,7 @@ export default function Main(): JSX.Element {
     const { active, delta } = event;
 
     setIsDragging(false);
+    setIsFullScreen(false);
 
     if (!active) return;
 
@@ -129,20 +137,49 @@ export default function Main(): JSX.Element {
               <Draggable id={`window-${doubleClickedProject.id}`}>
                 <div
                   className="project-app-container"
-                  style={{
-                    position: "absolute",
-                    left: `${
-                      windowPositions[`window-${doubleClickedProject.id}`]?.x ||
-                      window.innerWidth / 2 - 256
-                    }px`,
-                    top: `${
-                      windowPositions[`window-${doubleClickedProject.id}`]?.y ||
-                      window.innerHeight / 2 - 150
-                    }px`,
+                  ref={windowRef}
+                  style={
+                    !isFullScreen
+                      ? {
+                          position: "absolute",
+
+                          left: `${
+                            windowPositions[`window-${doubleClickedProject.id}`]
+                              ?.x || window.innerWidth / 2 - 256
+                          }px`,
+                          top: `${
+                            windowPositions[`window-${doubleClickedProject.id}`]
+                              ?.y || window.innerHeight / 2 - 150
+                          }px`,
+                        }
+                      : {
+                          position: "relative",
+                          width: "100%",
+                          height: "96vh",
+                          zIndex: 9999,
+                        }
+                  }
+                  onPointerDown={(e: any) => {
+                    if (isFullScreen) e.stopPropagation();
+                    windowRef.current?.focus();
+                    setIsFocused(true);
                   }}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
+                  tabIndex={0}
                 >
-                  <nav key="app-navbar">
-                    <div className="app-navbar-container" key="app-navbar">
+                  <nav
+                    key="app-navbar"
+                    onDoubleClick={() =>
+                      setIsFullScreen((previous: boolean) => !previous)
+                    }
+                  >
+                    <div
+                      className={`app-navbar-container ${
+                        isFocused ? "focused" : "blurred"
+                      }`}
+                      key="app-navbar"
+                    >
                       <div className="left-navbar-container">
                         <svg viewBox="0 0 32 32" width={32} height={32}>
                           <use
@@ -156,10 +193,22 @@ export default function Main(): JSX.Element {
                       <div className="right-navbar-container">
                         <button
                           className="resize-button"
-                          onClick={() => setIsMinimalized(true)}
+                          onClick={() => {
+                            setIsFocused(false);
+                            setIsMinimalized(true);
+                          }}
                           onPointerDown={(e) => e.stopPropagation()}
                         >
                           _
+                        </button>
+                        <button
+                          className="resize-button"
+                          onClick={() =>
+                            setIsFullScreen((previous: boolean) => !previous)
+                          }
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          |_|
                         </button>
                         <button
                           className="resize-button"
@@ -171,20 +220,63 @@ export default function Main(): JSX.Element {
                       </div>
                     </div>
                   </nav>
-                  <section className="project-monitor-container">
-                    <div className="screen-border-container">
-                      <svg viewBox="0 0 32 32" width={32} height={32}>
-                        <use
-                          href={getImageUrl(doubleClickedProject.name)}
-                          width={32}
-                          height={32}
-                        />
-                      </svg>
-                    </div>
-                    <div></div>
-                    <div></div>
-                    <div className="monitor-stand-container"></div>
-                  </section>
+                  <main className="window-main-container">
+                    <section className="project-monitor-container">
+                      <div className="screen-border-container">
+                        <svg viewBox="0 0 100% 100%" width="100%" height="100%">
+                          <use
+                            href={getImageUrl(doubleClickedProject.name)}
+                            width="100%"
+                            height="100%"
+                          />
+                        </svg>
+                        <button
+                          className="monitor-power-button"
+                          onClick={() =>
+                            setIsPlaying((previous: boolean) => !previous)
+                          }
+                          style={{
+                            backgroundColor: isPlaying
+                              ? "red"
+                              : "rgb(17, 170, 3)",
+                          }}
+                          onPointerDown={(e: any) => e.stopPropagation()}
+                        ></button>
+                      </div>
+                      <div className="stander-container">
+                        <div className="screen-holder-container">
+                          <div className="holder-separator"></div>
+                          <div className="holder-separator"></div>
+                        </div>
+                        <div className="curved-stand-container"></div>
+                        <div className="lower-stander-container">
+                          <div className="holders-container">
+                            <div className="lower-holder"></div>
+                            <div className="lower-holder"></div>
+                          </div>
+                          <div className="monitor-stand-container"></div>
+                        </div>
+                      </div>
+                    </section>
+                    <aside className="window-description-container"></aside>
+                  </main>
+                  <footer className="window-buttons-container">
+                    <a
+                      href={
+                        baseUrl +
+                        "/" +
+                        doubleClickedProject.name.replace(/[^a-zA-Z0-9]+/g, "")
+                      }
+                      className="project-link-container"
+                    >
+                      <button
+                        className="window-button"
+                        onPointerDown={(e: any) => e.stopPropagation()}
+                      >
+                        Next
+                      </button>
+                    </a>
+                  </footer>
                 </div>
               </Draggable>
             )}
