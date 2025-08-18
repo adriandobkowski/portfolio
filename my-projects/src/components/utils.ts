@@ -16,3 +16,16 @@
   
   return `${displayHours}:${minutes} ${period}`;
 }
+const cols = 17;
+const rows = 12;
+export const layout = Array.from({ length: cols * rows }, (_, i) => {
+    const x = i % cols;          
+    const y = Math.floor(i / cols); 
+    return {
+      i: String(i),
+      x,
+      y,
+      w: 1,
+      h: 1
+    };
+  });
