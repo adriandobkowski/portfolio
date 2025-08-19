@@ -1,39 +1,32 @@
 import { useState, useRef, type JSX, useEffect } from "react";
-import disableZoom from "./DisableZoom";
+import { disableZoom } from "./DisableZoom";
 import { formatTime, getImageUrl } from "./utils";
 import { projects, technologies } from "./constants";
 import { DndContext, closestCenter } from "@dnd-kit/core";
-import type { Item } from "./types";
+import type { Item, ProjectState } from "./types";
 import GridLayout, { WidthProvider, type Layout } from "react-grid-layout";
+import { Draggable, Droppable } from "./dnd";
 
 const RGL = WidthProvider(GridLayout);
 
-import { Draggable, Droppable } from "./dnd";
 export default function Main(): JSX.Element {
   const [startClicked, setStartClicked] = useState<boolean>(false);
-  const [doubleClickedProject, setDoubleClickedProject] = useState<Item | null>(
-    null
-  );
-  const [windowPositions, setWindowPositions] = useState<
-    Record<string, { x: number; y: number }>
-  >({});
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [isMinimalized, setIsMinimalized] = useState<boolean>(true);
-  const [closeRequested, setCloseRequested] = useState<boolean>(false);
-
-  const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
-  const [isFocused, setIsFocused] = useState<boolean>(false);
   const windowRef = useRef<HTMLDivElement | null>(null);
-
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [projectsState, setProjectsState] = useState<
+    Record<string, ProjectState>
+  >({});
 
   useEffect(() => {
     const tick = () => setCurrentDate(new Date());
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    disableZoom();
   }, []);
 
   const defaultLayout: Layout[] = projects.map((p, idx) => ({
@@ -48,56 +41,81 @@ export default function Main(): JSX.Element {
 
   const baseUrl = "https://github.com/adriandob2604";
 
-  disableZoom();
-  const handleMinimize = (): void => {
-    setIsFocused(false);
-    setCloseRequested(false);
-    setIsMinimalized(true);
+  const handleMinimize = (id: string): void => {
+    setProjectsState((previous: Record<string, ProjectState>) => ({
+      ...previous,
+      [id]: {
+        ...previous[id],
+        isMinimalized: true,
+        isFocused: false,
+        closeRequested: false,
+      },
+    }));
   };
-  const handleCloseWindow = (): void => {
-    // uruchom animację wyjścia; ikonę usuń po onExited
-    setCloseRequested(true);
-    setIsMinimalized(true);
+  const handleCloseWindow = (id: string): void => {
+    setProjectsState((previous: Record<string, ProjectState>) => ({
+      ...previous,
+      [id]: {
+        ...previous[id],
+        isMinimalized: true,
+        closeRequested: true,
+      },
+    }));
   };
   const handleDoubleClick = (project: Item): void => {
-    setDoubleClickedProject((prevProject) => {
-      if (prevProject && prevProject.id === project.id) {
-        return null;
+    setProjectsState((previous: Record<string, ProjectState>) => {
+      const copy = { ...previous };
+      if (copy[project.id]) {
+        copy[project.id] = {
+          ...copy[project.id],
+          isMinimalized: !copy[project.id].isMinimalized,
+        };
       } else {
-        return project;
+        copy[project.id] = {
+          name: project.name,
+          isOpen: true,
+          isPlaying: false,
+          isFocused: true,
+          isMinimalized: false,
+          closeRequested: false,
+          isFullScreen: false,
+        };
       }
+      return copy;
     });
-    setCloseRequested(false);
-    setIsMinimalized(false);
   };
   const handleDragStart = () => {
     setIsDragging(true);
   };
   const handleDragEnd = (event: any) => {
     const { active, delta } = event;
-
     setIsDragging(false);
-    setIsFullScreen(false);
 
     if (!active) return;
 
     const id = active.id;
     if (id.startsWith("window-")) {
-      setWindowPositions((prev) => {
-        const currentPos = prev[id] || {
+      const projectId = String(id).replace("window-", "");
+      setProjectsState((previous: Record<string, ProjectState>) => {
+        const prevState = previous[projectId] ?? ({} as ProjectState);
+        const currentPos = prevState.position || {
           x: window.innerWidth / 2 - 256,
           y: window.innerHeight / 2 - 150,
         };
         return {
-          ...prev,
-          [id]: {
-            x: currentPos.x + delta.x,
-            y: currentPos.y + delta.y,
+          ...previous,
+          [projectId]: {
+            ...prevState,
+            position: {
+              x: currentPos.x + delta.x,
+              y: currentPos.y + delta.y,
+            },
           },
         };
       });
     }
   };
+
   return (
     <div className="root-container">
       <DndContext
@@ -149,28 +167,32 @@ export default function Main(): JSX.Element {
               </div>
             ))}
           </RGL>
-          {doubleClickedProject && (
+          {Object.keys(projectsState).map((projectId: string) => (
             <Draggable
-              id={`window-${doubleClickedProject.id}`}
-              present={!isMinimalized}
+              id={`window-${projectId}`}
+              present={!projectsState[projectId]?.isMinimalized}
               delay={60}
               onExited={() => {
-                if (closeRequested) {
-                  setDoubleClickedProject(null);
-                  setCloseRequested(false);
+                if (projectsState[projectId].closeRequested) {
+                  setProjectsState((previous: Record<string, ProjectState>) => {
+                    const copy = { ...previous };
+                    delete copy[projectId];
+                    return copy;
+                  });
                 }
               }}
-              style={
-                !isFullScreen
+              style={{
+                zIndex: projectsState[projectId]?.isFocused ? 9999 : 1,
+                ...(!projectsState[projectId]?.isFullScreen
                   ? {
                       position: "fixed",
                       left: `${
-                        windowPositions[`window-${doubleClickedProject.id}`]
-                          ?.x || window.innerWidth / 2 - 256
+                        projectsState[projectId]?.position?.x ??
+                        window.innerWidth / 2 - 256
                       }px`,
                       top: `${
-                        windowPositions[`window-${doubleClickedProject.id}`]
-                          ?.y || window.innerHeight / 2 - 150
+                        projectsState[projectId]?.position?.y ??
+                        window.innerHeight / 2 - 150
                       }px`,
                     }
                   : {
@@ -181,58 +203,102 @@ export default function Main(): JSX.Element {
                       left: 0,
                       right: 0,
                       bottom: 48,
-                    }
-              }
+                    }),
+              }}
             >
               <div
                 className="project-app-container"
                 ref={windowRef}
                 onPointerDown={(e: any) => {
-                  if (isFullScreen) e.stopPropagation();
+                  if (projectsState[projectId]?.isFullScreen)
+                    e.stopPropagation();
                   windowRef.current?.focus();
-                  setIsFocused(true);
+                  setProjectsState(
+                    (previous: Record<string, ProjectState>) => ({
+                      ...previous,
+                      [projectId]: {
+                        ...previous[projectId],
+                        isFocused: true,
+                      },
+                    })
+                  );
                 }}
-                style={
-                  isFullScreen
-                    ? { width: "100%", height: "100%" }
-                    : { width: "800px", height: "600px" }
+                style={{
+                  width: projectsState[projectId]?.isFullScreen
+                    ? "100%"
+                    : "800px",
+                  height: projectsState[projectId]?.isFullScreen
+                    ? "100%"
+                    : "600px",
+                }}
+                onFocus={() =>
+                  setProjectsState(
+                    (previous: Record<string, ProjectState>) => ({
+                      ...previous,
+                      [projectId]: {
+                        ...previous[projectId],
+                        isFocused: true,
+                      },
+                    })
+                  )
                 }
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
+                onBlur={() =>
+                  setProjectsState(
+                    (previous: Record<string, ProjectState>) => ({
+                      ...previous,
+                      [projectId]: {
+                        ...previous[projectId],
+                        isFocused: false,
+                      },
+                    })
+                  )
+                }
                 tabIndex={-1}
               >
                 <nav
                   key="app-navbar"
-                  onDoubleClick={() =>
-                    setIsFullScreen((previous: boolean) => !previous)
-                  }
+                  onDoubleClick={() => {
+                    setProjectsState(
+                      (previous: Record<string, ProjectState>) => ({
+                        ...previous,
+                        [projectId]: {
+                          ...previous[projectId],
+                          isFullScreen: !previous[projectId].isFullScreen,
+                        },
+                      })
+                    );
+                  }}
                 >
                   <div
                     className={`app-navbar-container ${
-                      isFocused ? "focused" : "blurred"
+                      projectsState[projectId]?.isFocused
+                        ? "focused"
+                        : "blurred"
                     }`}
                     key="app-navbar"
                   >
                     <div className="left-navbar-container">
                       <svg viewBox="0 0 32 32" width={32} height={32}>
                         <use
-                          href={getImageUrl(doubleClickedProject.name)}
+                          href={getImageUrl(projectsState[projectId].name)}
                           width={32}
                           height={32}
                         />
                       </svg>
                       <div
                         className={`navbar-project-name ${
-                          isFocused ? "focused" : "blurred"
+                          projectsState[projectId]?.isFocused
+                            ? "focused"
+                            : "blurred"
                         }`}
                       >
-                        {doubleClickedProject.name}
+                        {projectsState[projectId].name}
                       </div>
                     </div>
                     <div className="right-navbar-container">
                       <button
                         className="resize-button"
-                        onClick={handleMinimize}
+                        onClick={() => handleMinimize(projectId)}
                         onPointerDown={(e) => e.stopPropagation()}
                       >
                         _
@@ -240,15 +306,24 @@ export default function Main(): JSX.Element {
                       <div className="resize-window-container">
                         <button
                           className="resize-button"
-                          onClick={() =>
-                            setIsFullScreen((previous: boolean) => !previous)
-                          }
+                          onClick={() => {
+                            setProjectsState(
+                              (previous: Record<string, ProjectState>) => ({
+                                ...previous,
+                                [projectId]: {
+                                  ...previous[projectId],
+                                  isFullScreen:
+                                    !previous[projectId].isFullScreen,
+                                },
+                              })
+                            );
+                          }}
                           onPointerDown={(e) => e.stopPropagation()}
                         ></button>
                       </div>
                       <button
                         className="resize-button"
-                        onClick={handleCloseWindow}
+                        onClick={() => handleCloseWindow(projectId)}
                         onPointerDown={(e) => e.stopPropagation()}
                       >
                         x
@@ -261,7 +336,7 @@ export default function Main(): JSX.Element {
                     <div className="screen-border-container">
                       <svg viewBox="0 0 100% 100%" width="100%" height="100%">
                         <use
-                          href={getImageUrl(doubleClickedProject.name)}
+                          href={getImageUrl(projectsState[projectId].name)}
                           width="100%"
                           height="100%"
                         />
@@ -269,10 +344,18 @@ export default function Main(): JSX.Element {
                       <button
                         className="monitor-power-button"
                         onClick={() =>
-                          setIsPlaying((previous: boolean) => !previous)
+                          setProjectsState(
+                            (previous: Record<string, ProjectState>) => ({
+                              ...previous,
+                              [projectId]: {
+                                ...previous[projectId],
+                                isPlaying: !previous[projectId].isPlaying,
+                              },
+                            })
+                          )
                         }
                         style={{
-                          backgroundColor: isPlaying
+                          backgroundColor: projectsState[projectId]?.isPlaying
                             ? "red"
                             : "rgb(17, 170, 3)",
                         }}
@@ -301,7 +384,10 @@ export default function Main(): JSX.Element {
                     href={
                       baseUrl +
                       "/" +
-                      doubleClickedProject.name.replace(/[^a-zA-Z0-9]+/g, "")
+                      projectsState[projectId].name.replace(
+                        /[^a-zA-Z0-9]+/g,
+                        ""
+                      )
                     }
                     target="_blank"
                     className="project-link-container"
@@ -316,7 +402,7 @@ export default function Main(): JSX.Element {
                 </footer>
               </div>
             </Draggable>
-          )}
+          ))}
         </Droppable>
       </DndContext>
       {startClicked && (
@@ -354,24 +440,32 @@ export default function Main(): JSX.Element {
 
           <div className="separator"></div>
           <div className="separator"></div>
-          {doubleClickedProject && (
+          {Object.keys(projectsState).map((projectId: string) => (
             <div
               className="started-app-container"
               onClick={() => {
-                setCloseRequested(false);
-                setIsMinimalized((previous: boolean) => !previous);
+                setProjectsState((previous: Record<string, ProjectState>) => {
+                  return {
+                    ...previous,
+                    [projectId]: {
+                      ...previous[projectId],
+                      closeRequested: false,
+                      isMinimalized: !previous[projectId].isMinimalized,
+                    },
+                  };
+                });
               }}
             >
               <svg width="32" height="32" viewBox="0 0 32 32">
                 <use
-                  href={getImageUrl(doubleClickedProject.name)}
+                  href={getImageUrl(projectsState[projectId].name)}
                   width={32}
                   height={32}
                 ></use>
               </svg>
-              <div>{doubleClickedProject.name}</div>
+              <div>{projectsState[projectId].name}</div>
             </div>
-          )}
+          ))}
         </div>
         <div className="right-start-container">
           <div className="start-time-container">{formatTime(currentDate)}</div>

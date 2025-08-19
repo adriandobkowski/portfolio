@@ -32,7 +32,6 @@ export function Draggable({
     }
   }, [present, delay, rendered]);
 
-  // Po zakończeniu animacji wyjścia odmontuj element
   if (!rendered) return null;
   const baseStyle: CSSProperties = {
     ...style,
