@@ -434,7 +434,9 @@ export default function Main(): JSX.Element {
                               controls
                             >
                               <source
-                                src={`/videos/${projectsState[projectId].name
+                                src={`${
+                                  import.meta.env.BASE_URL
+                                }videos/${projectsState[projectId].name
                                   .replace(/[^a-zA-Z0-9]+/g, "")
                                   .toLowerCase()}.mp4`}
                                 type="video/mp4"
@@ -534,7 +536,7 @@ export default function Main(): JSX.Element {
                   .includes("resume") && (
                   <div className="resume-container">
                     <embed
-                      src="/cv.pdf"
+                      src={`${import.meta.env.BASE_URL}cv.pdf`}
                       type="application/pdf"
                       style={{
                         width: projectsState[projectId]?.isFullScreen
