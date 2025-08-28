@@ -73,15 +73,19 @@ export default function Main(): JSX.Element {
     );
   };
   const handleMinimize = (id: string): void => {
-    setProjectsState((previous: Record<string, ProjectState>) => ({
-      ...previous,
-      [id]: {
-        ...previous[id],
-        isMinimalized: true,
-        isFocused: false,
-        closeRequested: false,
-      },
-    }));
+    setProjectsState((previous: Record<string, ProjectState>) => {
+      const curr = previous[id];
+      if (!curr) return previous;
+      return {
+        ...previous,
+        [id]: {
+          ...curr,
+          isMinimalized: true,
+          isFocused: false,
+          closeRequested: false,
+        },
+      };
+    });
   };
   const handleCloseWindow = (id: string): void => {
     setProjectsState((prev: Record<string, ProjectState>) => {
@@ -421,13 +425,17 @@ export default function Main(): JSX.Element {
                                   setProjectsState(
                                     (
                                       previous: Record<string, ProjectState>
-                                    ) => ({
-                                      ...previous,
-                                      [projectId]: {
-                                        ...previous[projectId],
-                                        isPlaying: false,
-                                      },
-                                    })
+                                    ) => {
+                                      const curr = previous[projectId];
+                                      if (!curr) return previous;
+                                      return {
+                                        ...previous,
+                                        [projectId]: {
+                                          ...curr,
+                                          isPlaying: false,
+                                        },
+                                      };
+                                    }
                                   );
                                 }, 800)
                               }
