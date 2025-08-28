@@ -2,8 +2,14 @@
     return new Date().getHours() >= 12;
   }
 
+  const iconExtByName: Record<string, string> = {
+    resume: "png",
+  };
+
   export function getImageUrl(name: string) {
-    return `/assets/${name.replace(/\s+/g, '').split(".").join("").toLowerCase()}.svg`;
+    const key = name.replace(/\s+/g, '').split(".").join("").toLowerCase();
+    const ext = iconExtByName[key] ?? "svg";
+    return `/assets/${key}.${ext}`;
   }
   export function formatTime(date: Date): string {
   const minutes = date.getMinutes() < 10 

@@ -64,9 +64,11 @@ export function Draggable({
 }
 export function Droppable({
   id,
+  onMouseDown,
   children,
 }: {
   id: string;
+  onMouseDown?: React.MouseEventHandler<HTMLElement>;
   children: React.ReactNode;
 }) {
   const { setNodeRef } = useDroppable({
@@ -74,7 +76,11 @@ export function Droppable({
   });
 
   return (
-    <div ref={setNodeRef} className="droppable-container">
+    <div
+      ref={setNodeRef}
+      className="droppable-container"
+      onMouseDown={onMouseDown}
+    >
       {children}
     </div>
   );

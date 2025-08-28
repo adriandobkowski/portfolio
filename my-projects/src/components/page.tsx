@@ -6,7 +6,7 @@ import { DndContext, closestCenter } from "@dnd-kit/core";
 import type { Item, ProjectState } from "./types";
 import GridLayout, { WidthProvider, type Layout } from "react-grid-layout";
 import { Draggable, Droppable } from "./dnd";
-
+import { baseUrl } from "./constants";
 const RGL = WidthProvider(GridLayout);
 
 export default function Main(): JSX.Element {
@@ -17,7 +17,22 @@ export default function Main(): JSX.Element {
   const [projectsState, setProjectsState] = useState<
     Record<string, ProjectState>
   >({});
-
+  const [buttonPressed, setButtonPressed] = useState<boolean>(false);
+  const [gridLayout, setGridLayout] = useState<Layout[]>(
+    projects.map((p, idx) => ({
+      i: String(p.id),
+      x: 0,
+      y: Math.floor(idx / 8) * 3,
+      w: 3,
+      h: 3,
+      static: false,
+    }))
+  );
+  const maxTextLength = 16;
+  const WINDOW_WIDTH = 800;
+  const WINDOW_HEIGHT = 600;
+  const TASKBAR_HEIGHT = 48;
+  const DESKTOP_PADDING = 8;
   useEffect(() => {
     const tick = () => setCurrentDate(new Date());
     tick();
@@ -29,18 +44,34 @@ export default function Main(): JSX.Element {
     disableZoom();
   }, []);
 
-  const defaultLayout: Layout[] = projects.map((p, idx) => ({
-    i: String(p.id),
-    x: 0,
-    y: Math.floor(idx / 8) * 3,
-    w: 3,
-    h: 3,
-    static: false,
-  }));
-  const [gridLayout, setGridLayout] = useState<Layout[]>(defaultLayout);
+  useEffect(() => {
+    const handleMouseUp = () => setButtonPressed(false);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, []);
 
-  const baseUrl = "https://github.com/adriandob2604";
+  const getCenteredPosition = () => {
+    const vw = typeof window !== "undefined" ? window.innerWidth : 0;
+    const vh =
+      typeof window !== "undefined" ? window.innerHeight - TASKBAR_HEIGHT : 0;
+    return {
+      x: Math.max(DESKTOP_PADDING, Math.round((vw - WINDOW_WIDTH) / 2)),
+      y: Math.max(DESKTOP_PADDING, Math.round((vh - WINDOW_HEIGHT) / 2)),
+    };
+  };
 
+  const renderIcon = (name: string, size: number = 64) => {
+    const url = getImageUrl(name);
+    const dim = { width: size, height: size } as const;
+    if (url.endsWith(".png")) {
+      return <img src={url} alt={name} {...dim} draggable={false} />;
+    }
+    return (
+      <svg viewBox={`0 0 ${size} ${size}`} {...dim}>
+        <use href={url} width={size} height={size} />
+      </svg>
+    );
+  };
   const handleMinimize = (id: string): void => {
     setProjectsState((previous: Record<string, ProjectState>) => ({
       ...previous,
@@ -53,14 +84,18 @@ export default function Main(): JSX.Element {
     }));
   };
   const handleCloseWindow = (id: string): void => {
-    setProjectsState((previous: Record<string, ProjectState>) => ({
-      ...previous,
-      [id]: {
-        ...previous[id],
-        isMinimalized: true,
-        closeRequested: true,
-      },
-    }));
+    setProjectsState((prev: Record<string, ProjectState>) => {
+      const curr = prev[id];
+      if (!curr) return prev;
+      return {
+        ...prev,
+        [id]: {
+          ...curr,
+          isMinimalized: true,
+          closeRequested: true,
+        },
+      };
+    });
   };
   const handleDoubleClick = (project: Item): void => {
     setProjectsState((previous: Record<string, ProjectState>) => {
@@ -73,12 +108,14 @@ export default function Main(): JSX.Element {
       } else {
         copy[project.id] = {
           name: project.name,
+          description: project.description,
           isOpen: true,
           isPlaying: false,
           isFocused: true,
           isMinimalized: false,
           closeRequested: false,
           isFullScreen: false,
+          position: getCenteredPosition(),
         };
       }
       return copy;
@@ -97,7 +134,9 @@ export default function Main(): JSX.Element {
     if (id.startsWith("window-")) {
       const projectId = String(id).replace("window-", "");
       setProjectsState((previous: Record<string, ProjectState>) => {
-        const prevState = previous[projectId] ?? ({} as ProjectState);
+        const prevState = previous[projectId];
+        if (!prevState) return previous;
+
         const currentPos = prevState.position || {
           x: window.innerWidth / 2 - 256,
           y: window.innerHeight / 2 - 150,
@@ -115,6 +154,12 @@ export default function Main(): JSX.Element {
       });
     }
   };
+  const logoStyle: React.CSSProperties = {
+    ["--win-tl" as any]: "#f25022",
+    ["--win-br" as any]: "#00a4ef",
+    ["--win-tr" as any]: "#7fba00",
+    ["--win-bl" as any]: "#ffb900",
+  };
 
   return (
     <div className="root-container">
@@ -124,7 +169,12 @@ export default function Main(): JSX.Element {
         collisionDetection={closestCenter}
         autoScroll={false}
       >
-        <Droppable id="desktop-container">
+        <Droppable
+          id="desktop-container"
+          onMouseDown={() => {
+            if (startClicked) setStartClicked(false);
+          }}
+        >
           <RGL
             className="desktop-container"
             cols={32}
@@ -151,18 +201,7 @@ export default function Main(): JSX.Element {
                 }}
                 onDoubleClick={() => handleDoubleClick(project)}
               >
-                <svg
-                  width="64"
-                  height="64"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 64 64"
-                >
-                  <use
-                    href={getImageUrl(project.name)}
-                    height={64}
-                    width={64}
-                  />
-                </svg>
+                {renderIcon(project.name, 64)}
                 <div className="project-name"> {project.name}</div>
               </div>
             ))}
@@ -170,6 +209,7 @@ export default function Main(): JSX.Element {
           {Object.keys(projectsState).map((projectId: string) => (
             <Draggable
               id={`window-${projectId}`}
+              key={`window-${projectId}`}
               present={!projectsState[projectId]?.isMinimalized}
               delay={60}
               onExited={() => {
@@ -230,6 +270,13 @@ export default function Main(): JSX.Element {
                   height: projectsState[projectId]?.isFullScreen
                     ? "100%"
                     : "600px",
+                  borderStyle:
+                    projectsState[projectId]?.isFullScreen ||
+                    projectsState[projectId]?.name
+                      .toLowerCase()
+                      .includes("resume")
+                      ? "hidden"
+                      : "solid",
                 }}
                 onFocus={() =>
                   setProjectsState(
@@ -242,17 +289,24 @@ export default function Main(): JSX.Element {
                     })
                   )
                 }
-                onBlur={() =>
-                  setProjectsState(
-                    (previous: Record<string, ProjectState>) => ({
-                      ...previous,
-                      [projectId]: {
-                        ...previous[projectId],
-                        isFocused: false,
-                      },
-                    })
-                  )
-                }
+                onBlur={(e) => {
+                  const container = e.currentTarget as HTMLDivElement;
+                  requestAnimationFrame(() => {
+                    const active = document.activeElement;
+                    if (active && container.contains(active)) {
+                      return;
+                    }
+                    setProjectsState(
+                      (previous: Record<string, ProjectState>) => ({
+                        ...previous,
+                        [projectId]: {
+                          ...previous[projectId],
+                          isFocused: false,
+                        },
+                      })
+                    );
+                  });
+                }}
                 tabIndex={-1}
               >
                 <nav
@@ -278,13 +332,7 @@ export default function Main(): JSX.Element {
                     key="app-navbar"
                   >
                     <div className="left-navbar-container">
-                      <svg viewBox="0 0 32 32" width={32} height={32}>
-                        <use
-                          href={getImageUrl(projectsState[projectId].name)}
-                          width={32}
-                          height={32}
-                        />
-                      </svg>
+                      {renderIcon(projectsState[projectId].name, 32)}
                       <div
                         className={`navbar-project-name ${
                           projectsState[projectId]?.isFocused
@@ -331,82 +379,182 @@ export default function Main(): JSX.Element {
                     </div>
                   </div>
                 </nav>
-                <main className="window-main-container">
-                  <section className="project-monitor-container">
-                    <div className="screen-border-container">
-                      <svg viewBox="0 0 100% 100%" width="100%" height="100%">
-                        <use
-                          href={getImageUrl(projectsState[projectId].name)}
-                          width="100%"
-                          height="100%"
-                        />
-                      </svg>
-                      <button
-                        className="monitor-power-button"
-                        onClick={() =>
-                          setProjectsState(
-                            (previous: Record<string, ProjectState>) => ({
-                              ...previous,
-                              [projectId]: {
-                                ...previous[projectId],
-                                isPlaying: !previous[projectId].isPlaying,
-                              },
-                            })
+                {!projectsState[projectId].name
+                  .toLowerCase()
+                  .includes("resume") && (
+                  <>
+                    <main className="window-main-container">
+                      <section className="project-monitor-container">
+                        <div
+                          className="screen-border-container"
+                          style={{ aspectRatio: "16 / 8" }}
+                        >
+                          {!projectsState[projectId].isPlaying && (
+                            <img
+                              src={getImageUrl(projectsState[projectId].name)}
+                              alt={projectsState[projectId].name}
+                              style={{
+                                inset: 0,
+                                width: "100%",
+                                height: "100%",
+                                aspectRatio: "16 / 8",
+                                display: "block",
+                              }}
+                              draggable={false}
+                            />
+                          )}
+                          {projectsState[projectId].isPlaying && (
+                            <video
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                display: "block",
+                                objectFit: "cover",
+                              }}
+                              autoPlay
+                              playsInline
+                              onLoadedMetadata={(e) => {
+                                e.currentTarget.play().catch(() => {});
+                              }}
+                              onEnded={() =>
+                                setTimeout(() => {
+                                  setProjectsState(
+                                    (
+                                      previous: Record<string, ProjectState>
+                                    ) => ({
+                                      ...previous,
+                                      [projectId]: {
+                                        ...previous[projectId],
+                                        isPlaying: false,
+                                      },
+                                    })
+                                  );
+                                }, 800)
+                              }
+                              controls
+                            >
+                              <source
+                                src={`/videos/${projectsState[projectId].name
+                                  .replace(/[^a-zA-Z0-9]+/g, "")
+                                  .toLowerCase()}.mp4`}
+                                type="video/mp4"
+                              />
+                            </video>
+                          )}
+                          <button
+                            className="monitor-power-button"
+                            onClick={() =>
+                              setTimeout(() => {
+                                setProjectsState(
+                                  (previous: Record<string, ProjectState>) => ({
+                                    ...previous,
+                                    [projectId]: {
+                                      ...previous[projectId],
+                                      isPlaying: !previous[projectId].isPlaying,
+                                    },
+                                  })
+                                );
+                              }, 100)
+                            }
+                            style={{
+                              backgroundColor: projectsState[projectId]
+                                ?.isPlaying
+                                ? "red"
+                                : "rgb(17, 170, 3)",
+                            }}
+                            onPointerDown={(e: any) => e.stopPropagation()}
+                          ></button>
+                        </div>
+                        <div className="stander-container">
+                          <div className="screen-holder-container">
+                            <div className="holder-separator"></div>
+                            <div className="holder-separator"></div>
+                          </div>
+                          <div className="curved-stand-container"></div>
+                          <div className="lower-stander-container">
+                            <div className="holders-container">
+                              <div className="lower-holder"></div>
+                              <div className="lower-holder"></div>
+                            </div>
+                            <div className="monitor-stand-container"></div>
+                          </div>
+                        </div>
+                      </section>
+                      <aside className="window-description-container">
+                        <div
+                          className="project-description-container"
+                          style={{
+                            fontSize: projectsState[projectId].isFullScreen
+                              ? "large"
+                              : "medium",
+                          }}
+                        >
+                          {projectsState[projectId].description}
+                        </div>
+                      </aside>
+                      <footer className="project-showcase-instruction">
+                        Press the green button to showcase the project.
+                      </footer>
+                    </main>
+                    <footer className="window-buttons-container">
+                      <a
+                        href={
+                          baseUrl +
+                          "/" +
+                          projectsState[projectId].name.replace(
+                            /[^a-zA-Z0-9]+/g,
+                            ""
                           )
                         }
-                        style={{
-                          backgroundColor: projectsState[projectId]?.isPlaying
-                            ? "red"
-                            : "rgb(17, 170, 3)",
-                        }}
                         onPointerDown={(e: any) => e.stopPropagation()}
-                      ></button>
-                    </div>
-                    <div className="stander-container">
-                      <div className="screen-holder-container">
-                        <div className="holder-separator"></div>
-                        <div className="holder-separator"></div>
-                      </div>
-                      <div className="curved-stand-container"></div>
-                      <div className="lower-stander-container">
-                        <div className="holders-container">
-                          <div className="lower-holder"></div>
-                          <div className="lower-holder"></div>
+                        target="_blank"
+                        className="project-link-container"
+                      >
+                        <div className="window-button-container">
+                          <button
+                            className="window-button"
+                            onMouseDownCapture={() => setButtonPressed(true)}
+                            style={{
+                              outline: buttonPressed
+                                ? "2px dotted currentColor"
+                                : "none",
+                              outlineOffset: "2px",
+                              fontWeight: buttonPressed ? "bolder" : "normal",
+                            }}
+                          >
+                            Next
+                          </button>
                         </div>
-                        <div className="monitor-stand-container"></div>
-                      </div>
-                    </div>
-                  </section>
-                  <aside className="window-description-container"></aside>
-                </main>
-                <footer className="window-buttons-container">
-                  <a
-                    href={
-                      baseUrl +
-                      "/" +
-                      projectsState[projectId].name.replace(
-                        /[^a-zA-Z0-9]+/g,
-                        ""
-                      )
-                    }
-                    target="_blank"
-                    className="project-link-container"
-                  >
-                    <button
-                      className="window-button"
-                      onPointerDown={(e: any) => e.stopPropagation()}
-                    >
-                      Next
-                    </button>
-                  </a>
-                </footer>
+                      </a>
+                    </footer>
+                  </>
+                )}
+                {projectsState[projectId].name
+                  .toLowerCase()
+                  .includes("resume") && (
+                  <div className="resume-container">
+                    <embed
+                      src="/cv.pdf"
+                      type="application/pdf"
+                      style={{
+                        width: projectsState[projectId]?.isFullScreen
+                          ? "100%"
+                          : "800px",
+                        height: projectsState[projectId]?.isFullScreen
+                          ? "100%"
+                          : "600px",
+                        userSelect: "none",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </Draggable>
           ))}
         </Droppable>
       </DndContext>
       {startClicked && (
-        <div className="windows-start-container">
+        <div className="windows-start-container" tabIndex={-1}>
           <div className="windows-search-line">
             <div className="search-line-item">Windows</div>
             <div className="search-line-item">98</div>
@@ -414,9 +562,7 @@ export default function Main(): JSX.Element {
           <ul className="search-start-container">
             {technologies.map((item) => (
               <div className="start-items-container" key={item.id}>
-                <svg width="32" height="32" viewBox="0 0 32 32">
-                  <use href={getImageUrl(item.name)} width={32} height={32} />
-                </svg>
+                {renderIcon(item.name, 32)}
                 <li className="start-item">{item.name}</li>
               </div>
             ))}
@@ -430,10 +576,27 @@ export default function Main(): JSX.Element {
             style={{ cursor: "pointer" }}
             className="start-button-container"
           >
-            <div className="cropper">
-              <svg width="48" height="64" viewBox="0 0 64 64">
-                <use href={getImageUrl("windows")} width={64} height={64} />
-              </svg>
+            <div className="windows-logo" style={logoStyle}>
+              <div className="window-separator-container">
+                <div
+                  className="window-separator"
+                  style={{ backgroundColor: "red" }}
+                ></div>
+                <div
+                  className="window-separator"
+                  style={{ backgroundColor: "green" }}
+                ></div>
+              </div>
+              <div className="window-separator-container">
+                <div
+                  className="window-separator"
+                  style={{ backgroundColor: "lightblue" }}
+                ></div>
+                <div
+                  className="window-separator"
+                  style={{ backgroundColor: "yellow" }}
+                ></div>
+              </div>
             </div>
             <div className="start">Start</div>
           </div>
@@ -443,6 +606,7 @@ export default function Main(): JSX.Element {
           {Object.keys(projectsState).map((projectId: string) => (
             <div
               className="started-app-container"
+              key={projectId}
               onClick={() => {
                 setProjectsState((previous: Record<string, ProjectState>) => {
                   return {
@@ -455,15 +619,29 @@ export default function Main(): JSX.Element {
                   };
                 });
               }}
+              style={{
+                background: projectsState[projectId].isFocused
+                  ? "conic-gradient(#ccc 25%, transparent 0 50%, #ffffff6f 0 75%, transparent 0) 0 / 4px 4px"
+                  : "transparent",
+                borderColor: projectsState[projectId].isFocused
+                  ? "black white white black"
+                  : "white black black white",
+              }}
             >
-              <svg width="32" height="32" viewBox="0 0 32 32">
-                <use
-                  href={getImageUrl(projectsState[projectId].name)}
-                  width={32}
-                  height={32}
-                ></use>
-              </svg>
-              <div>{projectsState[projectId].name}</div>
+              <img
+                src={getImageUrl(projectsState[projectId].name)}
+                alt=""
+                width={32}
+                height={32}
+              />
+              <div>
+                {projectsState[projectId].name.length > maxTextLength
+                  ? `${projectsState[projectId].name.slice(
+                      0,
+                      maxTextLength
+                    )}...`
+                  : projectsState[projectId].name}
+              </div>
             </div>
           ))}
         </div>

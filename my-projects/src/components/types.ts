@@ -1,9 +1,11 @@
 export type Item = {
   id: string;
   name: string;
+  description?: string;
 };
 export type ProjectState = {
   name: string;
+  description?: string;
   isOpen: boolean;
   isFocused: boolean;
   isMinimalized: boolean;
