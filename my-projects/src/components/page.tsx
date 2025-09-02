@@ -397,12 +397,15 @@ export default function Main(): JSX.Element {
                             <img
                               src={getImageUrl(projectsState[projectId].name)}
                               alt={projectsState[projectId].name}
+                              width={32}
+                              height={32}
                               style={{
                                 inset: 0,
                                 width: "100%",
                                 height: "100%",
                                 aspectRatio: "16 / 8",
                                 display: "block",
+                                objectFit: "contain",
                               }}
                               draggable={false}
                             />
@@ -451,29 +454,35 @@ export default function Main(): JSX.Element {
                               />
                             </video>
                           )}
-                          <button
-                            className="monitor-power-button"
-                            onClick={() =>
-                              setTimeout(() => {
-                                setProjectsState(
-                                  (previous: Record<string, ProjectState>) => ({
-                                    ...previous,
-                                    [projectId]: {
-                                      ...previous[projectId],
-                                      isPlaying: !previous[projectId].isPlaying,
-                                    },
-                                  })
-                                );
-                              }, 100)
-                            }
-                            style={{
-                              backgroundColor: projectsState[projectId]
-                                ?.isPlaying
-                                ? "red"
-                                : "rgb(17, 170, 3)",
-                            }}
-                            onPointerDown={(e: any) => e.stopPropagation()}
-                          ></button>
+                          <div className="cropper">
+                            <img
+                              src={getImageUrl("powerbutton")}
+                              alt="powerbutton"
+                              className="monitor-power-button"
+                              onClick={() =>
+                                setTimeout(() => {
+                                  setProjectsState(
+                                    (
+                                      previous: Record<string, ProjectState>
+                                    ) => ({
+                                      ...previous,
+                                      [projectId]: {
+                                        ...previous[projectId],
+                                        isPlaying:
+                                          !previous[projectId].isPlaying,
+                                      },
+                                    })
+                                  );
+                                }, 100)
+                              }
+                              style={{
+                                filter: projectsState[projectId]?.isPlaying
+                                  ? "invert(14%) sepia(96%) saturate(7485%) hue-rotate(-1deg) brightness(95%) contrast(110%)"
+                                  : "none",
+                              }}
+                              onPointerDown={(e: any) => e.stopPropagation()}
+                            />
+                          </div>
                         </div>
                         <div className="stander-container">
                           <div className="screen-holder-container">
@@ -502,9 +511,6 @@ export default function Main(): JSX.Element {
                           {projectsState[projectId].description}
                         </div>
                       </aside>
-                      <footer className="project-showcase-instruction">
-                        Press the green button to showcase the project.
-                      </footer>
                     </main>
                     <footer className="window-buttons-container">
                       <a
@@ -529,10 +535,9 @@ export default function Main(): JSX.Element {
                                 ? "2px dotted currentColor"
                                 : "none",
                               outlineOffset: "2px",
-                              fontWeight: buttonPressed ? "bolder" : "normal",
                             }}
                           >
-                            Next
+                            Project link
                           </button>
                         </div>
                       </a>
