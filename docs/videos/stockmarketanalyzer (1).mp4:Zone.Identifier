@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://cloudconvert.com/
+HostUrl=https://eu-central.storage.cloudconvert.com/tasks/12bb3b5a-dc67-49b0-87f9-9aec69286609/stockmarketanalyzer.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=cloudconvert-production%2F20250902%2Ffra%2Fs3%2Faws4_request&X-Amz-Date=20250902T000230Z&X-Amz-Expires=86400&X-Amz-Signature=a229eeff73fad71eab6b0cb7740c86c3825822169dd6e122a4715487452308af&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B%20filename%3D%22stockmarketanalyzer.mp4%22&response-content-type=video%2Fmp4&x-id=GetObject
